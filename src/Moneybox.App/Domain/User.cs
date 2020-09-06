@@ -2,12 +2,22 @@
 
 namespace Moneybox.App
 {
-    public class User
+    public sealed class User
     {
-        public Guid Id { get; set; }
+        private User() { }
 
-        public string Name { get; set; }
+        public Guid Id { get; private set; }
 
-        public string Email { get; set; }
+        public string Name { get; private set; }
+
+        public string Email { get; private set; }
+
+        public static User Load(string name, string email) => 
+            new User
+            { 
+                Id = Guid.NewGuid(),
+                Name = name,
+                Email = email
+            };
     }
 }

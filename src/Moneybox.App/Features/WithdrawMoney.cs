@@ -6,18 +6,27 @@ namespace Moneybox.App.Features
 {
     public class WithdrawMoney
     {
-        private IAccountRepository accountRepository;
-        private INotificationService notificationService;
+        private readonly IAccountRepository _accountRepository;
+        private readonly INotificationService _notificationService;
 
         public WithdrawMoney(IAccountRepository accountRepository, INotificationService notificationService)
         {
-            this.accountRepository = accountRepository;
-            this.notificationService = notificationService;
+            this._accountRepository = accountRepository;
+            this._notificationService = notificationService;
         }
 
         public void Execute(Guid fromAccountId, decimal amount)
         {
-            // TODO:
+            var account = _accountRepository.GetAccountById(fromAccountId);
+            if (account.CanWithdraw(amount))
+            {
+                account.WithDraw(amount);
+                _accountRepository.Update(account);
+            }
+            
+            //If the condition is met We could emit an event to a consumer notifies the source account
+            if (account.LowFundsWarning)
+                _notificationService.NotifyFundsLow(account.User.Email);
         }
     }
 }

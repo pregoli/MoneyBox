@@ -6,50 +6,36 @@ namespace Moneybox.App.Features
 {
     public class TransferMoney
     {
-        private IAccountRepository accountRepository;
-        private INotificationService notificationService;
+        private readonly IAccountRepository _accountRepository;
+        private readonly INotificationService _notificationService;
 
         public TransferMoney(IAccountRepository accountRepository, INotificationService notificationService)
         {
-            this.accountRepository = accountRepository;
-            this.notificationService = notificationService;
+            _accountRepository = accountRepository;
+            _notificationService = notificationService;
         }
 
         public void Execute(Guid fromAccountId, Guid toAccountId, decimal amount)
         {
-            var from = this.accountRepository.GetAccountById(fromAccountId);
-            var to = this.accountRepository.GetAccountById(toAccountId);
+            var sourceAccount = _accountRepository.GetAccountById(fromAccountId);
+            var targetAccount = _accountRepository.GetAccountById(toAccountId);
 
-            var fromBalance = from.Balance - amount;
-            if (fromBalance < 0m)
-            {
-                throw new InvalidOperationException("Insufficient funds to make transfer");
+            if (sourceAccount.CanWithdraw(amount) && targetAccount.CanReceive(amount))
+            { 
+                sourceAccount.WithDraw(amount);
+                targetAccount.Receive(amount);
+
+                _accountRepository.Update(sourceAccount);
+                _accountRepository.Update(targetAccount);
             }
 
-            if (fromBalance < 500m)
-            {
-                this.notificationService.NotifyFundsLow(from.User.Email);
-            }
+            //If the condition is met We could emit an event to a consumer notifies the source account
+            if (sourceAccount.LowFundsWarning)
+                _notificationService.NotifyFundsLow(sourceAccount.User.Email);
 
-            var paidIn = to.PaidIn + amount;
-            if (paidIn > Account.PayInLimit)
-            {
-                throw new InvalidOperationException("Account pay in limit reached");
-            }
-
-            if (Account.PayInLimit - paidIn < 500m)
-            {
-                this.notificationService.NotifyApproachingPayInLimit(to.User.Email);
-            }
-
-            from.Balance = from.Balance - amount;
-            from.Withdrawn = from.Withdrawn - amount;
-
-            to.Balance = to.Balance + amount;
-            to.PaidIn = to.PaidIn + amount;
-
-            this.accountRepository.Update(from);
-            this.accountRepository.Update(to);
+            //If the condition is met We could emit an event to a consumer notifies the target account
+            if (targetAccount.ApproachingPayInLimitWarning)
+                _notificationService.NotifyApproachingPayInLimit(targetAccount.User.Email);
         }
     }
 }
